@@ -19,10 +19,11 @@ CREATE TABLE IF NOT EXISTS item (
 # Create stock table
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS stock (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id INTEGER,
     date TEXT NOT NULL,
     unit_price REAL NOT NULL,
-    quantity INTEGER NOT NULL,
+    initial_stock INTEGER NOT NULL,
     stock INTEGER NOT NULL,
     FOREIGN KEY (item_id) REFERENCES item(id)
 )
