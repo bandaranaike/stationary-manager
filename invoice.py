@@ -1,7 +1,11 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
 from db_utils import create_connection
+from invoice_pdf import generate_pdf
 
 
 class InvoiceApp:
@@ -57,12 +61,14 @@ class InvoiceApp:
         self.add_button.grid(row=0, column=8, padx=10)
 
         # Treeview for invoice
-        self.invoice_tree = ttk.Treeview(self.root, columns=("item", "unit_price", "quantity", "total_value"),
+        self.invoice_tree = ttk.Treeview(self.root,
+                                         columns=("index", "stationary", "quantity", "unit_price", "total_value"),
                                          show='headings')
-        self.invoice_tree.heading("item", text="Item")
-        self.invoice_tree.heading("unit_price", text="Unit Price")
-        self.invoice_tree.heading("quantity", text="Quantity")
-        self.invoice_tree.heading("total_value", text="Total Value")
+        self.invoice_tree.heading("index", text="Index")
+        self.invoice_tree.heading("stationary", text="Stationary")
+        self.invoice_tree.heading("quantity", text="Qty")
+        self.invoice_tree.heading("unit_price", text="Price")
+        self.invoice_tree.heading("total_value", text="Cost")
         self.invoice_tree.pack(pady=10)
 
         # Button to remove selected item
@@ -105,21 +111,26 @@ class InvoiceApp:
 
             try:
                 quantity_needed = int(self.quantity_var.get())
+                print("quantity_needed:", quantity_needed)
                 if quantity_needed <= 0:
                     raise ValueError("Quantity must be positive")
 
                 total_price = 0
                 remaining_quantity = quantity_needed
+                print("remaining_quantity:", remaining_quantity)
 
                 for unit_price, stock_quantity in stocks:
+
                     if remaining_quantity <= 0:
                         break
                     if stock_quantity >= remaining_quantity:
                         total_price += remaining_quantity * unit_price
                         remaining_quantity = 0
+                        print("remaining_quantity 2 :", remaining_quantity)
                     else:
                         total_price += stock_quantity * unit_price
                         remaining_quantity -= stock_quantity
+                        print("stock_quantity 2 :", stock_quantity)
 
                 if remaining_quantity > 0:
                     messagebox.showwarning("Stock Error", "Not enough stock available")
@@ -162,12 +173,12 @@ class InvoiceApp:
                     if remaining_quantity <= 0:
                         break
                     if stock_quantity >= remaining_quantity:
-                        rows_to_add.append((f"{code} - {name}", f"{unit_price:.2f}", remaining_quantity,
+                        rows_to_add.append((f"{code}", f"{name}", remaining_quantity, f"{unit_price:.2f}",
                                             f"{remaining_quantity * unit_price:.2f}"))
                         stock[2] -= remaining_quantity
                         remaining_quantity = 0
                     else:
-                        rows_to_add.append((f"{code} - {name}", f"{unit_price:.2f}", stock_quantity,
+                        rows_to_add.append((f"{code}", f"{name}", stock_quantity, f"{unit_price:.2f}",
                                             f"{stock_quantity * unit_price:.2f}"))
                         remaining_quantity -= stock_quantity
                         stock[2] = 0
@@ -223,12 +234,69 @@ class InvoiceApp:
                     stock_id, unit_price, stock_quantity = stock
                     self.cursor.execute('UPDATE stock SET stock = ? WHERE id = ?', (stock_quantity, stock_id))
             self.conn.commit()
-            messagebox.showinfo("Success", "Invoice saved successfully")
+            generate_pdf("invoice.pdf", self.invoice_tree)
+            messagebox.showinfo("Success", "Invoice saved and PDF generated successfully")
             self.temp_stock_levels.clear()
             self.invoice_tree.delete(*self.invoice_tree.get_children())
             self.update_total_invoice_value()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save invoice: {e}")
+
+    def generate_pdf(self, file_name):
+        c = canvas.Canvas(file_name, pagesize=letter)
+        width, height = letter
+
+        # Page 1: Invoice Items
+        c.setFont("Helvetica-Bold", 12)
+        c.drawCentredString(width / 2.0, height - inch, "Invoice Items")
+
+        c.setFont("Helvetica-Bold", 10)
+        table_headers = ["Item", "Unit Price", "Quantity", "Total Value"]
+        x_offsets = [0.5 * inch, 2.5 * inch, 4.0 * inch, 5.5 * inch]
+        y_offset = height - 1.5 * inch
+        for i, header in enumerate(table_headers):
+            c.drawString(x_offsets[i], y_offset, header)
+
+        y_offset -= 0.3 * inch
+        c.setFont("Helvetica", 10)
+        for row_id in self.invoice_tree.get_children():
+            row_data = self.invoice_tree.item(row_id)['values']
+            for i, item in enumerate(row_data):
+                c.drawString(x_offsets[i], y_offset, str(item))
+            y_offset -= 0.3 * inch
+            if y_offset < inch:
+                c.showPage()
+                c.setFont("Helvetica-Bold", 12)
+                c.drawCentredString(width / 2.0, height - inch, "Invoice Items (Continued)")
+                y_offset = height - 1.5 * inch
+
+        c.showPage()
+
+        # Page 2: Additional Data
+        c.setFont("Helvetica-Bold", 12)
+        c.drawCentredString(width / 2.0, height - inch, "Additional Data")
+
+        # Simulated additional data; replace this with actual data
+        additional_data = [
+            ("Date", "Index", "Stationary", "Qty", "Price", "Cost"),
+            ("20-Jan", "70022", "Savings Pass Book", "4", "3,660.48", "14,641.92"),
+            ("22-Mar", "10104", "Attendance Register (10x25 Small)", "1", "246.99", "246.99"),
+            ("", "10945", "Pawning Loans Contract Forms", "2", "12,093.39", "24,186.78"),
+            # Add the rest of your data here...
+        ]
+
+        y_offset = height - 1.5 * inch
+        for row in additional_data:
+            for i, item in enumerate(row):
+                c.drawString(x_offsets[i % len(x_offsets)], y_offset, item)
+            y_offset -= 0.3 * inch
+            if y_offset < inch:
+                c.showPage()
+                c.setFont("Helvetica-Bold", 12)
+                c.drawCentredString(width / 2.0, height - inch, "Additional Data (Continued)")
+                y_offset = height - 1.5 * inch
+
+        c.save()
 
     def update_total_invoice_value(self):
         total_value = 0.00
@@ -244,3 +312,10 @@ class InvoiceApp:
 
 def create_invoice_tab(tab_frame):
     InvoiceApp(tab_frame)
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.title("Invoice Application")
+    app = InvoiceApp(root)
+    root.mainloop()
