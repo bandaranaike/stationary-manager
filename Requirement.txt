@@ -34,14 +34,13 @@ The stock management script involves the following:
 
 The invoice management includes:
     - Items stock can be added to the invoice
-    - Adding form : 5 Columns : Item search box | quantity | unit price | total value | remove
+    - 5 Columns : Item code and name | quantity | unit price | total value | remove
+    - Adding popup
         - Item search box could be a combobox/drop down for item selection. User can search the item by code or name
         - Entry fields for quantity
-        - Unit price will get from the relevant stock record
-        - total value = unit-price * quantity.
-        - 'remove' will delete the current record
     - If the requested quantity need more than one stocks, oldest stock need to get at first. have to add multiple records for each stocks until fulfill the quantity.
-	- Temporarily maintain stocks to avoid use same stock again and again.
+	- Keep the added stocks in the memory to prevent being used for two times
+	- Show the grand total in the bottom of the table as last row
 	- A save button at the bottom of the page updates the stock tables and generates the PDF.
 	- Need a place to add the branch code and branch account number to the invoice. It should be a searchable dropdown.
 	- Need show the grand total in the bottom: sum of all total values
