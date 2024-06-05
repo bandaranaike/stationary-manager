@@ -234,7 +234,7 @@ class InvoiceApp:
                     stock_id, unit_price, stock_quantity = stock
                     self.cursor.execute('UPDATE stock SET stock = ? WHERE id = ?', (stock_quantity, stock_id))
             self.conn.commit()
-            generate_pdf("invoice.pdf", self.invoice_tree)
+            self.generate_pdf("invoice.pdf", self.invoice_tree)
             messagebox.showinfo("Success", "Invoice saved and PDF generated successfully")
             self.temp_stock_levels.clear()
             self.invoice_tree.delete(*self.invoice_tree.get_children())

@@ -1,31 +1,34 @@
 import tkinter as tk
 from tkinter import ttk
-from db_utils import create_connection
-from stock_management import create_stock_management_tab
-from invoice import create_invoice_tab
+from stock_management import StockManagement
+from invoice_management import InvoiceManagement
 
 
-def create_main_window():
-    global conn, root, notebook
-    conn = create_connection("stationary_stock.db")
+class StationaryStockManager:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("BOC COP Stationery Stock Manager")
 
-    root = tk.Tk()
-    root.title("Stationary Stock Management")
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(expand=1, fill="both")
 
-    notebook = ttk.Notebook(root)
-    notebook.pack(expand=True, fill='both')
+        self.create_tabs()
 
-    # Create tabs
-    stock_frame = tk.Frame(notebook)
-    notebook.add(stock_frame, text="Stock Management")
-    create_stock_management_tab(stock_frame)
+    def create_tabs(self):
+        # Stock Management Tab
+        stock_management_frame = ttk.Frame(self.notebook)
+        self.notebook.add(stock_management_frame, text='Stock Management')
+        StockManagement(stock_management_frame)
 
-    invoice_frame = tk.Frame(notebook)
-    notebook.add(invoice_frame, text="Invoice")
-    create_invoice_tab(invoice_frame)
+        # Invoice Management Tab
+        invoice_management_frame = ttk.Frame(self.notebook)
+        self.notebook.add(invoice_management_frame, text='Invoice Management')
+        InvoiceManagement(invoice_management_frame)
 
-    root.mainloop()
+    def run(self):
+        self.root.mainloop()
 
 
 if __name__ == "__main__":
-    create_main_window()
+    app = StationaryStockManager()
+    app.run()

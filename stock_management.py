@@ -1,142 +1,141 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from db_utils import create_connection, fetch_all_items, fetch_stocks_by_item_id, fetch_items
-from datetime import date
+import sqlite3
 
 
-def toggle_stock_details(event):
-    item_id = item_tree.focus()
-    item_data = item_tree.item(item_id)
-    children = item_tree.get_children(item_id)
-    if children:
-        item_tree.delete(*children)
-    else:
-        stocks = fetch_stocks_by_item_id(conn, item_data['values'][0])
-        for stock in stocks:
-            item_tree.insert(item_id, "end", values=("", "", stock[1], stock[2], stock[3], stock[4]), tags=('stock',))
+class StockManagement:
+    def __init__(self, parent):
+        self.parent = parent
+        self.create_widgets()
 
+    def create_widgets(self):
+        self.stock_tree = ttk.Treeview(self.parent,
+                                       columns=("id", "code", "name", "total_value", "total_stock", "status"),
+                                       show="headings")
+        self.stock_tree.heading("id", text="ID")
+        self.stock_tree.heading("code", text="Code")
+        self.stock_tree.heading("name", text="Name")
+        self.stock_tree.heading("total_value", text="Total Value")
+        self.stock_tree.heading("total_stock", text="Total Stock")
+        self.stock_tree.heading("status", text="Status")
 
-def open_add_item_popup():
-    popup = tk.Toplevel(root)
-    popup.title("Add Item")
-    popup.geometry("300x250")
-    helvetica_font = ("Helvetica", 12)
-    tk.Label(popup, text="Item Code", font=helvetica_font).grid(row=0, column=0, padx=10, pady=5)
-    entry_code = ttk.Entry(popup, font=helvetica_font)
-    entry_code.grid(row=0, column=1, padx=10, pady=5)
-    tk.Label(popup, text="Item Name", font=helvetica_font).grid(row=1, column=0, padx=10, pady=5)
-    entry_name = ttk.Entry(popup, font=helvetica_font)
-    entry_name.grid(row=1, column=1, padx=10, pady=5)
-    tk.Label(popup, text="Full Value", font=helvetica_font).grid(row=2, column=0, padx=10, pady=5)
-    entry_value = ttk.Entry(popup, font=helvetica_font)
-    entry_value.grid(row=2, column=1, padx=10, pady=5)
-    tk.Label(popup, text="Stock", font=helvetica_font).grid(row=3, column=0, padx=10, pady=5)
-    entry_stock = ttk.Entry(popup, font=helvetica_font)
-    entry_stock.grid(row=3, column=1, padx=10, pady=5)
-    tk.Label(popup, text="Status", font=helvetica_font).grid(row=4, column=0, padx=10, pady=5)
-    entry_status = ttk.Entry(popup, font=helvetica_font)
-    entry_status.grid(row=4, column=1, padx=10, pady=5)
+        self.stock_tree.bind('<Double-1>', self.expand_item)
 
-    def add_item():
-        conn = create_connection("stationary_stock.db")
+        self.stock_tree.pack(fill=tk.BOTH, expand=True)
+
+        self.populate_stock_tree()
+
+        self.add_item_button = tk.Button(self.parent, text="Add New Item", command=self.add_new_item)
+        self.add_item_button.pack(side=tk.LEFT, padx=10, pady=10)
+
+        self.add_stock_button = tk.Button(self.parent, text="Add New Stock", command=self.add_new_stock)
+        self.add_stock_button.pack(side=tk.LEFT, padx=10, pady=10)
+
+    def populate_stock_tree(self):
+        for i in self.stock_tree.get_children():
+            self.stock_tree.delete(i)
+        conn = sqlite3.connect('stationary_stock.db')
         cursor = conn.cursor()
-        cursor.execute('''
-        INSERT INTO item (code, name, full_value, stock, status)
-        VALUES (?, ?, ?, ?, ?)
-        ''', (entry_code.get(), entry_name.get(), float(entry_value.get()), int(entry_stock.get()), entry_status.get()))
-        conn.commit()
+        cursor.execute("SELECT * FROM items")
+        rows = cursor.fetchall()
+        for row in rows:
+            self.stock_tree.insert("", tk.END, values=row)
         conn.close()
-        messagebox.showinfo("Success", "Item added successfully")
-        popup.destroy()
-        refresh_item_list()
 
-    ttk.Button(popup, text="Add Item", command=add_item).grid(row=5, column=1, pady=10)
+    def add_new_item(self):
+        self.new_item_window = tk.Toplevel(self.parent)
+        self.new_item_window.title("Add New Item")
 
+        tk.Label(self.new_item_window, text="Name").grid(row=0, column=0, padx=10, pady=10)
+        self.item_name_entry = tk.Entry(self.new_item_window)
+        self.item_name_entry.grid(row=0, column=1, padx=10, pady=10)
 
-def update_combobox(event):
-    typed = combobox_item_id.get()
-    items = fetch_items(typed)
-    filtered_items = [item for item in items if typed.lower() in item.lower()]
-    combobox_item_id['values'] = filtered_items
-    if filtered_items:
-        combobox_item_id.event_generate('<Down>')
+        tk.Label(self.new_item_window, text="Code").grid(row=1, column=0, padx=10, pady=10)
+        self.item_code_entry = tk.Entry(self.new_item_window)
+        self.item_code_entry.grid(row=1, column=1, padx=10, pady=10)
 
+        tk.Button(self.new_item_window, text="Save", command=self.save_new_item).grid(row=2, column=0, columnspan=2,
+                                                                                      pady=10)
 
-def open_add_stock_popup():
-    popup = tk.Toplevel(root)
-    popup.title("Add Stock")
-    popup.geometry("400x300")
-    helvetica_font = ("Helvetica", 12)
-    tk.Label(popup, text="Item ID", font=helvetica_font).grid(row=0, column=0, padx=10, pady=5)
-    global combobox_item_id
-    combobox_item_id = ttk.Combobox(popup, font=helvetica_font)
-    combobox_item_id.grid(row=0, column=1, padx=10, pady=5)
-    items = fetch_items('')
-    combobox_item_id['values'] = items
-    combobox_item_id.bind('<KeyRelease>', update_combobox)
-    tk.Label(popup, text="Unit Price", font=helvetica_font).grid(row=1, column=0, padx=10, pady=5)
-    entry_unit_price = ttk.Entry(popup, font=helvetica_font)
-    entry_unit_price.grid(row=1, column=1, padx=10, pady=5)
-    tk.Label(popup, text="Quantity", font=helvetica_font).grid(row=2, column=0, padx=10, pady=5)
-    entry_quantity = ttk.Entry(popup, font=helvetica_font)
-    entry_quantity.grid(row=2, column=1, padx=10, pady=5)
-    tk.Label(popup, text="Stock Quantity", font=helvetica_font).grid(row=3, column=0, padx=10, pady=5)
-    entry_stock_quantity = ttk.Entry(popup, font=helvetica_font)
-    entry_stock_quantity.grid(row=3, column=1, padx=10, pady=5)
+    def save_new_item(self):
+        name = self.item_name_entry.get()
+        code = self.item_code_entry.get()
+        if name and code:
+            conn = sqlite3.connect('stationary_stock.db')
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO items (name, code) VALUES (?, ?)", (name, code))
+            conn.commit()
+            conn.close()
+            self.new_item_window.destroy()
+            self.populate_stock_tree()
+        else:
+            messagebox.showwarning("Input Error", "Please enter both name and code.")
 
-    def add_stock():
-        conn = create_connection("stationary_stock.db")
+    def add_new_stock(self):
+        self.new_stock_window = tk.Toplevel(self.parent)
+        self.new_stock_window.title("Add New Stock")
+
+        tk.Label(self.new_stock_window, text="Item").grid(row=0, column=0, padx=10, pady=10)
+        self.item_combobox = ttk.Combobox(self.new_stock_window)
+        self.item_combobox.grid(row=0, column=1, padx=10, pady=10)
+        self.populate_item_combobox()
+
+        tk.Label(self.new_stock_window, text="Quantity").grid(row=1, column=0, padx=10, pady=10)
+        self.stock_quantity_entry = tk.Entry(self.new_stock_window)
+        self.stock_quantity_entry.grid(row=1, column=1, padx=10, pady=10)
+
+        tk.Label(self.new_stock_window, text="Unit Price").grid(row=2, column=0, padx=10, pady=10)
+        self.stock_price_entry = tk.Entry(self.new_stock_window)
+        self.stock_price_entry.grid(row=2, column=1, padx=10, pady=10)
+
+        tk.Button(self.new_stock_window, text="Save", command=self.save_new_stock).grid(row=3, column=0, columnspan=2,
+                                                                                        pady=10)
+
+    def populate_item_combobox(self):
+        conn = sqlite3.connect('stationary_stock.db')
         cursor = conn.cursor()
-        item_id = combobox_item_id.get().split(" - ")[0]  # Extract item ID from combobox selection
-        cursor.execute('''
-        INSERT INTO stock (item_id, date, unit_price, quantity, stock)
-        VALUES (?, ?, ?, ?, ?)
-        ''', (int(item_id), str(date.today()), float(entry_unit_price.get()), int(entry_quantity.get()),
-              int(entry_stock_quantity.get())))
-        conn.commit()
+        cursor.execute("SELECT id, name FROM items")
+        rows = cursor.fetchall()
+        items = ["{} - {}".format(row[0], row[1]) for row in rows]
+        self.item_combobox['values'] = items
         conn.close()
-        messagebox.showinfo("Success", "Stock entry added successfully")
-        popup.destroy()
 
-    ttk.Button(popup, text="Add Stock Entry", command=add_stock).grid(row=4, column=1, pady=10)
+    def save_new_stock(self):
+        item = self.item_combobox.get()
+        quantity = self.stock_quantity_entry.get()
+        price = self.stock_price_entry.get()
+
+        if item and quantity and price:
+            item_id = item.split(" - ")[0]
+            conn = sqlite3.connect('stationary_stock.db')
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO stocks (item_id, date, unit_price, stock, initial_stock) VALUES (?, DATE('now'), ?, ?, ?)",
+                (item_id, price, quantity, quantity))
+            cursor.execute("UPDATE items SET total_value = total_value + ?, total_stock = total_stock + ? WHERE id = ?",
+                           (float(price) * int(quantity), int(quantity), item_id))
+            conn.commit()
+            conn.close()
+            self.new_stock_window.destroy()
+            self.populate_stock_tree()
+        else:
+            messagebox.showwarning("Input Error", "Please fill all fields.")
+
+    def expand_item(self, event):
+        selected_item = self.stock_tree.selection()[0]
+        item_id = self.stock_tree.item(selected_item, 'values')[0]
+
+        if not self.stock_tree.get_children(selected_item):
+            conn = sqlite3.connect('stationary_stock.db')
+            cursor = conn.cursor()
+            stocks = cursor.execute(
+                "SELECT id, item_id, date, unit_price, stock, initial_stock FROM stocks WHERE item_id=?", (item_id,))
+            for stock in stocks:
+                self.stock_tree.insert(selected_item, 'end', values=stock)
+            conn.close()
 
 
-def refresh_item_list():
-    for i in item_tree.get_children():
-        item_tree.delete(i)
-    items = fetch_all_items(conn)
-    for item in items:
-        item_tree.insert("", "end", values=item)
-
-
-def create_stock_management_tab(tab_frame):
-    global conn, item_tree, root
-    conn = create_connection("stationary_stock.db")
-    root = tab_frame
-
-    style = ttk.Style()
-    style.theme_use("clam")
-    helvetica_font = ("Helvetica", 12)
-    style.configure("TButton", font=helvetica_font)
-    style.configure("TLabel", font=helvetica_font)
-    style.configure("Treeview.Heading", font=("Helvetica", 14, "bold"))
-    style.configure("Treeview", font=helvetica_font)
-
-    add_item_button = ttk.Button(tab_frame, text="Add Item", command=open_add_item_popup)
-    add_item_button.pack(pady=10)
-
-    add_stock_button = ttk.Button(tab_frame, text="Add Stock", command=open_add_stock_popup)
-    add_stock_button.pack(pady=10)
-
-    item_tree = ttk.Treeview(tab_frame, columns=("ID", "Code", "Name", "Full Value", "Stock", "Status"),
-                             show='headings', style="Treeview")
-    item_tree.heading("ID", text="ID")
-    item_tree.heading("Code", text="Code")
-    item_tree.heading("Name", text="Name")
-    item_tree.heading("Full Value", text="Full Value")
-    item_tree.heading("Stock", text="Stock")
-    item_tree.heading("Status", text="Status")
-
-    refresh_item_list()
-    item_tree.bind("<Double-1>", toggle_stock_details)
-    item_tree.pack(expand=True, fill='both')
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = StockManagement(root)
+    root.mainloop()
