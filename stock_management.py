@@ -94,9 +94,10 @@ class StockManagement:
     def populate_item_combobox(self):
         conn = sqlite3.connect('stationary_stock.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name FROM items")
+        cursor.execute("SELECT id, name, code FROM items")
         rows = cursor.fetchall()
-        items = ["{} - {}".format(row[0], row[1]) for row in rows]
+        items = ["{} - {} - {}".format(row[0], row[1], row[2]) for row in rows]
+
         self.item_combobox['values'] = items
         conn.close()
 

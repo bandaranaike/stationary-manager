@@ -26,7 +26,7 @@ class InvoiceManagement:
         self.populate_branch_combobox()
 
         self.invoice_tree = ttk.Treeview(self.invoice_frame, columns=(
-        "item_code", "item_name", "quantity", "unit_price", "total_value", "remove"),
+            "item_code", "item_name", "quantity", "unit_price", "total_value", "remove"),
                                          show="headings")
         self.invoice_tree.heading("item_code", text="Item Code")
         self.invoice_tree.heading("item_name", text="Item Name")
@@ -49,9 +49,9 @@ class InvoiceManagement:
     def populate_branch_combobox(self):
         conn = sqlite3.connect('stationary_stock.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, account_number FROM branches")
+        cursor.execute("SELECT id, name, code FROM branches")
         rows = cursor.fetchall()
-        branches = ["{} - {} ({})".format(row[0], row[1], row[2]) for row in rows]
+        branches = ["{} - {} - {}".format(row[0], row[1], row[2]) for row in rows]
         self.branch_combobox['values'] = branches
         conn.close()
 
@@ -129,7 +129,7 @@ class InvoiceManagement:
 
             total_value = used_quantity * unit_price
             item = self.invoice_tree.insert("", tk.END, values=(
-            item_code, item_name, used_quantity, unit_price, total_value, "Remove"))
+                item_code, item_name, used_quantity, unit_price, total_value, "Remove"))
 
             self.temp_stock[stock_id] = self.temp_stock.get(stock_id, 0) + used_quantity
             self.invoice_items.append((item_code, item_name, used_quantity, unit_price, total_value, stock_id))
@@ -169,12 +169,15 @@ class InvoiceManagement:
 
     def save_invoice(self):
         branch = self.branch_combobox.get()
+
+        print(branch)
+
         if not branch:
             messagebox.showwarning("Input Error", "Please select a branch.")
             return
 
-        branch_id = branch.split(" - ")[0]
-        branch_account = branch.split("(")[1].strip(")")
+        branch_name = branch.split(" - ")[1]
+        branch_code = branch.split(" - ")[2]
 
         conn = sqlite3.connect('stationary_stock.db')
         cursor = conn.cursor()
@@ -185,7 +188,7 @@ class InvoiceManagement:
         conn.commit()
         conn.close()
 
-        self.generate_pdf(branch_id, branch_account)
+        self.generate_pdf(branch_name, branch_code)
         messagebox.showinfo("Invoice Saved", "The invoice has been saved successfully.")
         self.temp_stock.clear()
         self.invoice_items.clear()
@@ -193,16 +196,17 @@ class InvoiceManagement:
         self.invoice_tree.delete(*self.invoice_tree.get_children())
         self.update_grand_total()
 
-    def generate_pdf(self, branch_id, branch_account):
+    def generate_pdf(self, branch_name, branch_code):
         pdf = FPDF()
         pdf.add_page()
 
         pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt="Sender Address", ln=True, align="L")
+        pdf.cell(200, 10, txt="Central Province Office, Kandy", ln=True, align="L")
         pdf.cell(200, 10, txt="ADVICE OF DEBIT", ln=True, align="C")
-        pdf.cell(200, 10, txt=f"Branch Number: {branch_id}", ln=True, align="R")
-        pdf.cell(200, 10, txt=f"Account Number: {branch_account}", ln=True, align="R")
-        pdf.cell(200, 10, txt="Stationery Charges for {}".format(datetime.now().strftime("%Y-%m-%d")), ln=True,
+        pdf.cell(200, 8, txt=f"Branch Code: {branch_code}", ln=True, align="L")
+        pdf.cell(200, 8, txt=f"Branch Name: {branch_name}", ln=True, align="L")
+        pdf.cell(200, 8, txt="G/L Account No. 11310020", ln=True, align="C")
+        pdf.cell(200, 8, txt="Stationery Charges for - {}".format(datetime.now().strftime("%Y-%m-%d")), ln=True,
                  align="C")
 
         pdf.ln(10)
@@ -227,10 +231,18 @@ class InvoiceManagement:
 
         pdf.cell(160, 10, txt="Grand Total", border=1)
         pdf.cell(30, 10, txt=f"{grand_total:.2f}", border=1)
-        pdf.ln(20)
-        pdf.cell(200, 10, txt="Authorized Officer", ln=True, align="R")
+        pdf.ln(30)
+        pdf.cell(200, 4, txt="..............................", ln=True, align="L")
+        pdf.cell(200, 10, txt="Authorized Officer", ln=True, align="L")
 
-        pdf.output("invoice.pdf")
+        pdf.output(self.generate_pdf_filename(branch_code))
+
+    @staticmethod
+    def generate_pdf_filename(branch_code):
+        now = datetime.now()
+        date_str = now.strftime("%Y%m%d")
+        time_str = now.strftime("%H%M%S")
+        return f"{branch_code}-{date_str}-{time_str}.pdf"
 
 
 if __name__ == "__main__":
