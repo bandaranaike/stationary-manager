@@ -8,9 +8,9 @@ The app will use a local database, and the database management system also needs
 The database structure is as follows:
 
     The stationary_stock.db file contains three tables: items, stocks, and branches.
-    The items table includes columns for id, code, name, total_value, total_stock, and status.
+    The items table includes columns for id, code, name, total_value, total_stock, reorder_level, and status.
     The stocks table includes columns for id, item_id, date, unit_price, stock, initial_stock, with a foreign key reference to the items table.
-    The branches table includes columns for id, name, code, and account_number.
+    The branches table includes columns for id, name, code.
 
 The scripts use Python's Tkinter library to create GUI applications for managing stock and generating invoices for stationery items.
 

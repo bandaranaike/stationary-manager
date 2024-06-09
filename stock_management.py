@@ -54,16 +54,22 @@ class StockManagement:
         self.item_code_entry = tk.Entry(self.new_item_window)
         self.item_code_entry.grid(row=1, column=1, padx=10, pady=10)
 
-        tk.Button(self.new_item_window, text="Save", command=self.save_new_item).grid(row=2, column=0, columnspan=2,
+        tk.Label(self.new_item_window, text="Reorder Level").grid(row=2, column=0, padx=10, pady=10)
+        self.item_reorder_entry = tk.Entry(self.new_item_window)
+        self.item_reorder_entry.grid(row=2, column=1, padx=10, pady=10)
+
+        tk.Button(self.new_item_window, text="Save", command=self.save_new_item).grid(row=3, column=0, columnspan=2,
                                                                                       pady=10)
 
     def save_new_item(self):
         name = self.item_name_entry.get()
         code = self.item_code_entry.get()
+        reorder_level = self.item_reorder_entry.get()
         if name and code:
             conn = sqlite3.connect('stationary_stock.db')
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO items (name, code) VALUES (?, ?)", (name, code))
+            cursor.execute("INSERT INTO items (name, code, reorder_level) VALUES (?, ?, ?)",
+                           (name, code, reorder_level))
             conn.commit()
             conn.close()
             self.new_item_window.destroy()
@@ -130,10 +136,23 @@ class StockManagement:
             conn = sqlite3.connect('stationary_stock.db')
             cursor = conn.cursor()
             stocks = cursor.execute(
-                "SELECT id, item_id, date, unit_price, stock, initial_stock FROM stocks WHERE item_id=?", (item_id,))
+                "SELECT '', date, unit_price, stock, initial_stock, unit_price * stock AS t_value FROM stocks WHERE item_id=?",
+                (item_id,))
+
+            # Insert column headers as a child item
+            self.stock_tree.insert(selected_item, 'end',
+                                   values=("", "Date", "Unit Price", "Stock", "Initial Stock", "Value"), open=True,
+                                   tags='details_header')
+
             for stock in stocks:
-                self.stock_tree.insert(selected_item, 'end', values=stock)
+                self.stock_tree.insert(selected_item, 'end', values=stock, tags='details')
+
             conn.close()
+
+        # Style the separator
+        background_color = '#E9E9E9'
+        self.stock_tree.tag_configure('details', foreground='#37403F', background=background_color)
+        self.stock_tree.tag_configure('details_header', foreground='#292929', background=background_color)
 
 
 if __name__ == "__main__":

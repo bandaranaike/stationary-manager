@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
 from fpdf import FPDF
+import os
 from datetime import datetime
 
 
@@ -242,7 +243,14 @@ class InvoiceManagement:
         now = datetime.now()
         date_str = now.strftime("%Y%m%d")
         time_str = now.strftime("%H%M%S")
-        return f"{branch_code}-{date_str}-{time_str}.pdf"
+        filename = f"{date_str}-{time_str}.pdf"
+
+        # Create directory if it does not exist
+        directory = os.path.join(os.getcwd(), branch_code)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        return os.path.join(directory, filename)
 
 
 if __name__ == "__main__":

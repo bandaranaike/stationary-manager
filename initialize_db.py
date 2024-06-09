@@ -12,7 +12,8 @@ def create_tables():
         name TEXT NOT NULL,
         total_value REAL DEFAULT 0,
         total_stock INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'active'
+        reorder_level INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'REORDER'
     )
     ''')
 
@@ -32,8 +33,7 @@ def create_tables():
     CREATE TABLE IF NOT EXISTS branches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        code TEXT NOT NULL,
-        account_number TEXT NOT NULL
+        code TEXT NOT NULL
     )
     ''')
 
