@@ -13,7 +13,7 @@ def create_tables():
         total_value REAL DEFAULT 0,
         total_stock INTEGER DEFAULT 0,
         reorder_level INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'REORDER'
+        status TEXT DEFAULT 'ORDER'
     )
     ''')
 
