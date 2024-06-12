@@ -16,16 +16,29 @@ def update_item_status():
 
 
 def update_single_item_status(cursor, item_id, reorder_level):
-    cursor.execute('SELECT IFNULL(SUM(stock), 0) FROM stocks WHERE item_id = ?', (item_id,))
-    total_stock = cursor.fetchone()[0]
+    # Correct SQL query to get total stock and total value
+    cursor.execute('''
+        SELECT 
+            IFNULL(SUM(stock), 0) AS total_stock, 
+            IFNULL(SUM(stock * unit_price), 0) AS total_value 
+        FROM stocks 
+        WHERE item_id = ?
+    ''', (item_id,))
 
+    # Fetch total stock and total value
+    result = cursor.fetchone()
+    total_stock = result[0]
+    total_value = result[1]
+
+    # Determine status based on total stock
     status = 'GOOD' if total_stock > reorder_level else 'ORDER'
 
+    # Update the items table
     cursor.execute('''
         UPDATE items
-        SET total_stock = ?, status = ?
+        SET total_stock = ?, total_value = ?, status = ?
         WHERE id = ?
-        ''', (total_stock, status, item_id))
+    ''', (total_stock, total_value, status, item_id))
 
 
 if __name__ == '__main__':

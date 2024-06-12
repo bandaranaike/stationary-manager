@@ -63,6 +63,7 @@ class InvoiceManagement:
         tk.Label(self.new_invoice_item_window, text="Item").grid(row=0, column=0, padx=10, pady=10)
         self.item_combobox = ttk.Combobox(self.new_invoice_item_window)
         self.item_combobox.grid(row=0, column=1, padx=10, pady=10)
+        self.item_combobox.bind('<KeyRelease>', self.filter_item_combobox)
         self.populate_item_combobox()
 
         tk.Label(self.new_invoice_item_window, text="Quantity").grid(row=1, column=0, padx=10, pady=10)
@@ -77,9 +78,22 @@ class InvoiceManagement:
         cursor = conn.cursor()
         cursor.execute("SELECT id, code, name FROM items")
         rows = cursor.fetchall()
-        items = ["{} - {} ({})".format(row[0], row[1], row[2]) for row in rows]
-        self.item_combobox['values'] = items
+        self.items = ["{} - {} ({})".format(row[0], row[1], row[2]) for row in rows]
+        self.item_combobox['values'] = self.items
         conn.close()
+
+    def filter_item_combobox(self, event):
+        value = event.widget.get().lower()
+        filtered_items = [item for item in self.items if value in item.lower()]
+        self.item_combobox['values'] = filtered_items
+
+        # Ensure the combobox dropdown is shown
+        if filtered_items:
+            self.item_combobox.event_generate('<Down>')
+
+        # Set focus back to the entry part of the combobox
+        self.item_combobox.icursor(tk.END)
+        self.item_combobox.focus_set()
 
     def check_and_add_item(self):
         item = self.item_combobox.get()
@@ -98,11 +112,16 @@ class InvoiceManagement:
         cursor.execute("SELECT SUM(stock) FROM stocks WHERE item_id = ?", (item_id,))
         total_stock = cursor.fetchone()[0]
 
+        # Handle the case where total_stock is None
+        if total_stock is None:
+            total_stock = 0
+
         already_added_quantity = self.added_stock_counts.get(item_id, 0)
+
         available_stock = total_stock - already_added_quantity
 
-        if available_stock is None or available_stock < int(quantity):
-            messagebox.showwarning("Stock Error", f"There is not enough stock. Only {available_stock or 0} available.")
+        if available_stock < int(quantity):
+            messagebox.showwarning("Stock Error", f"There is not enough stock. Only {available_stock} available.")
             conn.close()
             return
 
@@ -170,8 +189,6 @@ class InvoiceManagement:
 
     def save_invoice(self):
         branch = self.branch_combobox.get()
-
-        print(branch)
 
         if not branch:
             messagebox.showwarning("Input Error", "Please select a branch.")
