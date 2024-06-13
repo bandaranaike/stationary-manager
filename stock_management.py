@@ -2,11 +2,27 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
 
+from files_and_path_generator import generate_pdf_filename
+from generate_report import fetch_data, generate_pdf  # Import the required functions
+from remove_empty_stocks import remove_empty_stocks  # Import the required functions
+
 
 class StockManagement:
     def __init__(self, parent):
+        self.stock_price_entry = None
+        self.stock_quantity_entry = None
+        self.item_combobox = None
+        self.new_stock_window = None
+        self.item_code_entry = None
+        self.item_reorder_entry = None
+        self.item_name_entry = None
+        self.new_item_window = None
+        self.generate_report_button = None
+        self.add_stock_button = None
+        self.add_item_button = None
         self.parent = parent
         self.create_widgets()
+        self.db_path = 'stationary_stock.db'
 
     def create_widgets(self):
         self.stock_tree = ttk.Treeview(self.parent,
@@ -30,6 +46,18 @@ class StockManagement:
 
         self.add_stock_button = tk.Button(self.parent, text="Add New Stock", command=self.add_new_stock)
         self.add_stock_button.pack(side=tk.LEFT, padx=10, pady=10)
+
+        self.generate_report_button = tk.Button(self.parent, text="Remove empty stocks",
+                                                command=self.remove_empty_stocks)
+        self.generate_report_button.pack(side=tk.LEFT, padx=10, pady=10)
+
+        self.generate_report_button = tk.Button(self.parent, text="Generate Report",
+                                                command=self.generate_report)
+        self.generate_report_button.pack(side=tk.LEFT, padx=10, pady=10)
+
+        self.generate_report_button = tk.Button(self.parent, text="Refresh view",
+                                                command=self.refresh_view)
+        self.generate_report_button.pack(side=tk.LEFT, padx=10, pady=10)
 
     def populate_stock_tree(self):
         for i in self.stock_tree.get_children():
@@ -76,6 +104,13 @@ class StockManagement:
             self.populate_stock_tree()
         else:
             messagebox.showwarning("Input Error", "Please enter both name and code.")
+
+    def refresh_view(self):
+        if self.new_stock_window:
+            self.new_item_window.destroy()
+        if self.new_stock_window:
+            self.new_stock_window.destroy()
+        self.populate_stock_tree()
 
     def add_new_stock(self):
         self.new_stock_window = tk.Toplevel(self.parent)
@@ -153,6 +188,23 @@ class StockManagement:
         background_color = '#E9E9E9'
         self.stock_tree.tag_configure('details', foreground='#37403F', background=background_color)
         self.stock_tree.tag_configure('details_header', foreground='#292929', background=background_color)
+
+    def generate_report(self):
+        pdf_path = generate_pdf_filename('reports')
+
+        try:
+            data, total_sum = fetch_data(self.db_path)
+            generate_pdf(data, total_sum, pdf_path)
+            messagebox.showinfo("Report", "Report generated successfully.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to generate report: {e}")
+
+    def remove_empty_stocks(self):
+        try:
+            remove_empty_stocks(self.db_path)
+            messagebox.showinfo("Report", "Empty stock has been removed.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to remove empty stocks: {e}")
 
 
 if __name__ == "__main__":

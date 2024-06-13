@@ -2,12 +2,26 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
 from fpdf import FPDF
-import os
 from datetime import datetime
+from files_and_path_generator import generate_pdf_filename
+from remove_empty_stocks import remove_empty_stocks
+from status_and_stock_update import update_item_status
 
 
 class InvoiceManagement:
     def __init__(self, parent):
+        self.db_path = 'stationary_stock.db'
+        self.items = None
+        self.item_quantity_entry = None
+        self.item_combobox = None
+        self.add_item_button = None
+        self.new_invoice_item_window = None
+        self.save_invoice_button = None
+        self.grand_total_label = None
+        self.invoice_tree = None
+        self.branch_combobox = None
+        self.branch_frame = None
+        self.invoice_frame = None
         self.parent = parent
         self.create_widgets()
         self.temp_stock = {}  # Dictionary to keep track of temporary stock levels
@@ -37,6 +51,7 @@ class InvoiceManagement:
         self.invoice_tree.heading("remove", text="Remove")
 
         self.invoice_tree.pack(fill=tk.BOTH, expand=1)
+        self.invoice_tree.bind("<Double-1>", self.handle_remove_item)  # Bind double-click event for removal
 
         self.add_item_button = tk.Button(self.invoice_frame, text="Add Item to Invoice", command=self.add_invoice_item)
         self.add_item_button.pack(side=tk.LEFT, padx=10, pady=10)
@@ -44,11 +59,14 @@ class InvoiceManagement:
         self.save_invoice_button = tk.Button(self.invoice_frame, text="Save Invoice", command=self.save_invoice)
         self.save_invoice_button.pack(side=tk.LEFT, padx=10, pady=10)
 
+        self.save_invoice_button = tk.Button(self.invoice_frame, text="Clear invoice", command=self.clear_invoice)
+        self.save_invoice_button.pack(side=tk.RIGHT, padx=10, pady=10)
+
         self.grand_total_label = tk.Label(self.invoice_frame, text="Grand Total: 0.00")
         self.grand_total_label.pack(side=tk.RIGHT, padx=10, pady=10)
 
     def populate_branch_combobox(self):
-        conn = sqlite3.connect('stationary_stock.db')
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, code FROM branches")
         rows = cursor.fetchall()
@@ -74,7 +92,7 @@ class InvoiceManagement:
                                                                                                   columnspan=2, pady=10)
 
     def populate_item_combobox(self):
-        conn = sqlite3.connect('stationary_stock.db')
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT id, code, name FROM items")
         rows = cursor.fetchall()
@@ -107,7 +125,7 @@ class InvoiceManagement:
         item_code = item.split(" - ")[1].split(" ")[0]
         item_name = item.split("(", 1)[1].strip(")")
 
-        conn = sqlite3.connect('stationary_stock.db')
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT SUM(stock) FROM stocks WHERE item_id = ?", (item_id,))
         total_stock = cursor.fetchone()[0]
@@ -130,7 +148,7 @@ class InvoiceManagement:
         self.new_invoice_item_window.destroy()
 
     def add_item_to_invoice(self, item_id, item_code, item_name, quantity):
-        conn = sqlite3.connect('stationary_stock.db')
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, unit_price, stock FROM stocks WHERE item_id = ? AND stock > 0 ORDER BY date",
@@ -154,11 +172,6 @@ class InvoiceManagement:
             self.temp_stock[stock_id] = self.temp_stock.get(stock_id, 0) + used_quantity
             self.invoice_items.append((item_code, item_name, used_quantity, unit_price, total_value, stock_id))
 
-            # Associate the remove action with a lambda function
-            self.invoice_tree.set(item, "remove", "Remove")
-            self.invoice_tree.bind("<Double-1>",
-                                   lambda event, item=item: self.remove_invoice_item(item, stock_id, used_quantity))
-
             self.added_stock_counts[item_id] = self.added_stock_counts.get(item_id, 0) + used_quantity
 
             remaining_quantity -= used_quantity
@@ -166,25 +179,24 @@ class InvoiceManagement:
         self.update_grand_total()
         conn.close()
 
-    def remove_invoice_item(self, item, stock_id, quantity):
+    def handle_remove_item(self, event):
         selected_item = self.invoice_tree.selection()[0]
         values = self.invoice_tree.item(selected_item, "values")
-        item_code, item_name, qty, unit_price, total_value, _ = values
-        self.invoice_tree.delete(selected_item)
+        item_code, item_name, quantity, unit_price, total_value, _ = values
 
         for entry in self.invoice_items:
             if entry[:5] == values:
                 stock_id = entry[5]
-                self.temp_stock[stock_id] -= int(qty)
+                self.temp_stock[stock_id] -= int(quantity)
                 self.invoice_items.remove(entry)
                 break
 
-        self.added_stock_counts[item_code] -= int(qty)
+        self.invoice_tree.delete(selected_item)
+        self.added_stock_counts[item_code.split(" ")[0]] -= int(quantity)
         self.update_grand_total()
 
     def update_grand_total(self):
-        grand_total = sum(
-            float(self.invoice_tree.set(item, "total_value")) for item in self.invoice_tree.get_children())
+        grand_total = sum(float(self.invoice_tree.set(item, "total_value")) for item in self.invoice_tree.get_children())
         self.grand_total_label.config(text=f"Grand Total: {grand_total:.2f}")
 
     def save_invoice(self):
@@ -197,7 +209,7 @@ class InvoiceManagement:
         branch_name = branch.split(" - ")[1]
         branch_code = branch.split(" - ")[2]
 
-        conn = sqlite3.connect('stationary_stock.db')
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
         for stock_id, used_quantity in self.temp_stock.items():
@@ -208,6 +220,13 @@ class InvoiceManagement:
 
         self.generate_pdf(branch_name, branch_code)
         messagebox.showinfo("Invoice Saved", "The invoice has been saved successfully.")
+
+        remove_empty_stocks(self.db_path)
+        update_item_status()
+
+        self.clear_invoice()
+
+    def clear_invoice(self):
         self.temp_stock.clear()
         self.invoice_items.clear()
         self.added_stock_counts.clear()
@@ -253,21 +272,7 @@ class InvoiceManagement:
         pdf.cell(200, 4, txt="..............................", ln=True, align="L")
         pdf.cell(200, 10, txt="Authorized Officer", ln=True, align="L")
 
-        pdf.output(self.generate_pdf_filename(branch_code))
-
-    @staticmethod
-    def generate_pdf_filename(branch_code):
-        now = datetime.now()
-        date_str = now.strftime("%Y%m%d")
-        time_str = now.strftime("%H%M%S")
-        filename = f"{date_str}-{time_str}.pdf"
-
-        # Create directory if it does not exist
-        directory = os.path.join(os.getcwd(), branch_code)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-
-        return os.path.join(directory, filename)
+        pdf.output(generate_pdf_filename(branch_code))
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from stock_management import StockManagement
 from invoice_management import InvoiceManagement
+from initialize_db import create_tables
 
 
 class StationaryStockManager:
@@ -30,5 +31,8 @@ class StationaryStockManager:
 
 
 if __name__ == "__main__":
-    app = StationaryStockManager()
-    app.run()
+    try:
+        app = StationaryStockManager()
+        app.run()
+    except Exception as e:
+        create_tables()

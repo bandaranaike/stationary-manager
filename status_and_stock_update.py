@@ -39,7 +39,3 @@ def update_single_item_status(cursor, item_id, reorder_level):
         SET total_stock = ?, total_value = ?, status = ?
         WHERE id = ?
     ''', (total_stock, total_value, status, item_id))
-
-
-if __name__ == '__main__':
-    update_item_status()

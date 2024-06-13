@@ -21,8 +21,3 @@ def remove_empty_stocks(db_path):
         # Close the database connection
         if conn:
             conn.close()
-
-
-# Example usage
-if __name__ == '__main__':
-    remove_empty_stocks('stationary_stock.db')
